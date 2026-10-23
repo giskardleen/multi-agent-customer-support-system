@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────────
+# Python
+# ─────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+
+# ─────────────────────────────────────────────
+# Environment & Secrets
+# ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─────────────────────────────────────────────
+# Claude Code session data
+# ─────────────────────────────────────────────
+.claude/
+
+# ─────────────────────────────────────────────
+# Test / runtime artifacts
+# ─────────────────────────────────────────────
+payload.json
+response.json
+build/
+
+# ─────────────────────────────────────────────
+# AgentCore CLI (agentcore deploy) artifacts
+# ─────────────────────────────────────────────
+agentcore/.cli/logs/
+agentcore/.cache/
+agentcore/agentcore_runtime/
+agentcore/*.zip
+agentcore/.env.local
+agentcore/cdk/node_modules/
+agentcore/cdk/cdk.out/
+agentcore/cdk/dist/
+
+# Local environments and distribution leftovers
+.venv/
+venv/
+_to_delete/
+.DS_Store
+agentcore/.cli/
