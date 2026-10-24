@@ -1,0 +1,47 @@
+[1m[96m  Task 2 - Multi-Agent Orchestration[0m
+  [92m✓ PASS[0m [+5pts] build_inventory_agent() returns an Agent object
+  [92m✓ PASS[0m [+5pts] InventoryAgent has 3 tools (3 found)
+  [92m✓ PASS[0m [+5pts] build_policy_agent() returns an Agent object
+  [92m✓ PASS[0m [+5pts] PolicyAgent has 1 tool (1 found)
+  [92m✓ PASS[0m [+5pts] build_orchestrator_agent() returns an Agent object
+  [92m✓ PASS[0m [+5pts] OrchestratorAgent has 5 routing tools (5 found)
+  [92m✓ PASS[0m [+5pts] OrchestratorAgent uses config.ORCHESTRATOR_MODEL_ID (Claude Haiku 4.5 - correct for routing)
+  [92m✓ PASS[0m [+5pts] Worker agents use config.WORKER_MODEL_ID (Claude Sonnet 4.5 - correct for reasoning)
+  [92m✓ PASS[0m [+0pts] build_policy_agent() runs the retrievers with ThreadPoolExecutor
+  [1mScore: [92m40/40 pts (100%)[0m
+  [92m[1m🎉 Perfect score! All tasks complete.[0m
+[1m[96m  Task 3 - AgentCore Deployment + Guardrails[0m
+  [92m✓ PASS[0m [+5pts] Guardrail 'udacity-agentcore-guardrail' exists in Bedrock
+  [92m✓ PASS[0m [+5pts] Guardrail content, PII, topic and word policies match the specification
+  [92m✓ PASS[0m [+3pts] Guardrail version 1 is published and READY
+  [92m✓ PASS[0m [+7pts] AgentCore Runtime is READY (PUBLIC / HTTP) with guardrail + KB environment variables
+  [1mScore: [92m20/20 pts (100%)[0m
+  [92m[1m🎉 Perfect score! All tasks complete.[0m
+[1m[96m  Task 4 - Memory[0m
+  [92m✓ PASS[0m [+5pts] AgentCore Memory udacity_agentcore_memory-rmy0Fe88J7 is ACTIVE
+  [92m✓ PASS[0m [+5pts] Memory uses the SESSION_SUMMARY (summaryMemoryStrategy) strategy
+  [92m✓ PASS[0m [+5pts] Memory eventExpiryDuration is 7 days
+  [1mScore: [92m15/15 pts (100%)[0m
+  [92m[1m🎉 Perfect score! All tasks complete.[0m
+[1m[96m  Task 5 - Bedrock Knowledge Bases[0m
+  [92m✓ PASS[0m [+5pts] RETURNS_KB_ID is set in environment (4BQAEIT7AF)
+  [92m✓ PASS[0m [+0pts] Returns Knowledge Base is ACTIVE
+  [92m✓ PASS[0m [+0pts] Returns KB uses amazon.titan-embed-text-v2:0
+  [92m✓ PASS[0m [+0pts] Returns KB data source has a completed sync
+  [92m✓ PASS[0m [+5pts] SHIPPING_KB_ID is set in environment (GGYRXJYUKN)
+  [92m✓ PASS[0m [+0pts] Shipping Knowledge Base is ACTIVE
+  [92m✓ PASS[0m [+0pts] Shipping KB uses amazon.titan-embed-text-v2:0
+  [92m✓ PASS[0m [+0pts] Shipping KB data source has a completed sync
+  [92m✓ PASS[0m [+5pts] WARRANTY_KB_ID is set in environment (DDOTF1LXCK)
+  [92m✓ PASS[0m [+0pts] Warranty Knowledge Base is ACTIVE
+  [92m✓ PASS[0m [+0pts] Warranty KB uses amazon.titan-embed-text-v2:0
+  [92m✓ PASS[0m [+0pts] Warranty KB data source has a completed sync
+  [92m✓ PASS[0m [+5pts] All three Knowledge Bases return passages for a policy question
+  [92m✓ PASS[0m [+5pts] search_all_policies() returned combined results from the three retrievers (7.3s)
+  [1mScore: [92m25/25 pts (100%)[0m
+  [92m[1m🎉 Perfect score! All tasks complete.[0m
+[1m[96m  Task 6 - Observability[0m
+  [92m✓ PASS[0m [+10pts] CloudWatch logging enabled at INFO level → /aws/bedrock/agentcore/udacity-agentcore
+  [92m✓ PASS[0m [+10pts] X-Ray tracing enabled: 100% sampling, Transaction Search → CloudWatch Logs (ACTIVE)
+  [1mScore: [92m20/20 pts (100%)[0m
+  [92m[1m🎉 Perfect score! All tasks complete.[0m

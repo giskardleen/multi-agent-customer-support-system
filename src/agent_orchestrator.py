@@ -56,6 +56,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Strands Agents SDK - see: https://github.com/strands-agents/sdk-python
 from strands import Agent
 from strands.models import BedrockModel
+from strands.tools.executors import SequentialToolExecutor
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
@@ -851,12 +852,19 @@ refund as completed unless the recorded worker results explicitly support it.
         old_version = int(state['version'])
         trace.step_start('refund_agent')
         trace.agent_section('REFUND AGENT')
+        current_date_utc = time.strftime('%Y-%m-%d', time.gmtime())
         try:
             result = str(refund_agent(
                 f"Session ID: {session_id}\n"
                 f"Customer ID: {customer_id}\n"
                 f"Return/refund request: {request}\n"
-                "Read the stored inventory context before making a decision."
+                f"Authoritative current date (UTC): {current_date_utc}\n"
+                "Read the stored inventory context before deciding. Use the "
+                "supplied current date and preserve DynamoDB order dates "
+                "exactly; never silently change a date or year. Report missing, "
+                "malformed, or future dates as inconsistencies rather than "
+                "inventing replacements. Apply the existing order-date "
+                "convention: 30 days for Standard or 60 days for Premium."
             ))
         except Exception as exc:
             raise RuntimeError(f"RefundAgent invocation failed: {exc}") from exc
@@ -981,6 +989,7 @@ refund as completed unless the recorded worker results explicitly support it.
             route_to_refund_agent,
             route_to_communication_agent,
         ],
+        tool_executor=SequentialToolExecutor(),
     )
 
 
@@ -1075,12 +1084,20 @@ def create_guardrail() -> tuple[str, str]:
     existing = bedrock_client.list_guardrails()
     for g in existing.get('guardrails', []):
         if g['name'] == config.GUARDRAIL_NAME:
-            guardrail_id = g['id']
+            guardrail_id = str(g['id'])
             versions = bedrock_client.list_guardrails(guardrailIdentifier=guardrail_id)
-            guardrail_version = 'DRAFT'
+            guardrail_version = None
             for v in versions.get('guardrails', []):
                 if v.get('version', 'DRAFT') != 'DRAFT':
-                    guardrail_version = v['version']
+                    guardrail_version = str(v['version'])
+            if guardrail_version is None:
+                version_response = bedrock_client.create_guardrail_version(
+                    guardrailIdentifier=guardrail_id,
+                    description=(
+                        'Initial published NovaMart customer-support guardrail.'
+                    ),
+                )
+                guardrail_version = str(version_response['version'])
             print(f"Guardrail already exists: {guardrail_id} (version: {guardrail_version})")
             return guardrail_id, guardrail_version
 
@@ -1108,7 +1125,89 @@ def create_guardrail() -> tuple[str, str]:
     # bedrock_client.create_guardrail_version(guardrailIdentifier=...)
     # and return (guardrail_id, guardrail_version).
 
-    pass
+    topic_definitions = {
+        'competitor products': (
+            'Requests promoting, comparing, recommending, or seeking '
+            'information about competitor products or services.'
+        ),
+        'pricing negotiations': (
+            'Requests to haggle, negotiate, or change an advertised price. '
+            'Excludes arithmetic using already-specified prices, quantities, '
+            'or discounts without asking to change the price.'
+        ),
+        'legal threats': (
+            'Requests that threaten legal action, litigation, lawsuits, or '
+            'other legal proceedings against NovaMart.'
+        ),
+    }
+    topics_config = [
+        {
+            'name': topic.title(),
+            'definition': topic_definitions[topic.lower()],
+            'type': 'DENY',
+        }
+        for topic in config.GUARDRAIL_BLOCKED_TOPICS
+    ]
+
+    response = bedrock_client.create_guardrail(
+        name=config.GUARDRAIL_NAME,
+        description=(
+            'NovaMart customer-support safeguards for harmful content, '
+            'sensitive information, off-topic requests, and profanity.'
+        ),
+        contentPolicyConfig={
+            'filtersConfig': [
+                {
+                    'type': filter_type,
+                    'inputStrength': strength,
+                    'outputStrength': strength,
+                }
+                for filter_type, strength in (
+                    ('SEXUAL', 'HIGH'),
+                    ('VIOLENCE', 'HIGH'),
+                    ('HATE', 'HIGH'),
+                    ('INSULTS', 'MEDIUM'),
+                    ('MISCONDUCT', 'MEDIUM'),
+                )
+            ],
+        },
+        sensitiveInformationPolicyConfig={
+            'piiEntitiesConfig': [
+                {'type': 'CREDIT_DEBIT_CARD_NUMBER', 'action': 'BLOCK'},
+                {'type': 'US_SOCIAL_SECURITY_NUMBER', 'action': 'BLOCK'},
+                {'type': 'EMAIL', 'action': 'ANONYMIZE'},
+                {'type': 'PHONE', 'action': 'ANONYMIZE'},
+            ],
+        },
+        topicPolicyConfig={
+            'topicsConfig': topics_config,
+            'tierConfig': {'tierName': 'STANDARD'},
+        },
+        wordPolicyConfig={
+            'managedWordListsConfig': [{'type': 'PROFANITY'}],
+        },
+        blockedInputMessaging=(
+            'I cannot help with that request. Please ask about NovaMart '
+            'orders, policies, returns, refunds, shipping, or warranties.'
+        ),
+        blockedOutputsMessaging=(
+            'I cannot provide that response. Please ask about NovaMart '
+            'orders, policies, returns, refunds, shipping, or warranties.'
+        ),
+        crossRegionConfig={
+            'guardrailProfileIdentifier': 'us.guardrail.v1:0',
+        },
+    )
+    guardrail_id = str(response['guardrailId'])
+
+    version_response = bedrock_client.create_guardrail_version(
+        guardrailIdentifier=guardrail_id,
+        description='Initial published NovaMart customer-support guardrail.',
+    )
+    guardrail_version = str(version_response['version'])
+
+    print(f"Created guardrail: {guardrail_id} (version: {guardrail_version})")
+    return guardrail_id, guardrail_version
 
 
 def deploy_to_agentcore_runtime(
@@ -1163,7 +1262,24 @@ def deploy_to_agentcore_runtime(
     # 3. Deploy:  agentcore_cli.deploy()        (runs `agentcore deploy -y`)
     # 4. Read the ARN the CLI recorded:
     #      runtime_arn = agentcore_cli.deployed_runtime_arn()
-    runtime_arn = None
+    runtime_env = {
+        'AWS_REGION': config.AWS_REGION,
+        'PROJECT_NAME': config.PROJECT_NAME,
+        'RETURNS_KB_ID': config.RETURNS_KB_ID,
+        'SHIPPING_KB_ID': config.SHIPPING_KB_ID,
+        'WARRANTY_KB_ID': config.WARRANTY_KB_ID,
+        'AGENT_LOG_GROUP': config.AGENT_LOG_GROUP,
+        'GUARDRAIL_ID': guardrail_id,
+        'GUARDRAIL_VERSION': guardrail_version,
+    }
+    agentcore_cli.configure_runtime(
+        env_vars=runtime_env,
+        network_mode='PUBLIC',
+        protocol='HTTP',
+        execution_role_arn=config.AGENTCORE_ROLE_ARN,
+    )
+    agentcore_cli.deploy()
+    runtime_arn = agentcore_cli.deployed_runtime_arn()
 
     if not runtime_arn:
         raise NotImplementedError("deploy_to_agentcore_runtime: AgentCore CLI deployment not implemented")
@@ -1206,7 +1322,21 @@ def configure_memory(runtime_arn: str) -> str:
     #         'namespaces': ['/summaries/{actorId}/{sessionId}']}}]
     #   - clientToken (e.g. str(uuid.uuid4())) for idempotency
     # Store the API response in `response`.
-    response = None
+    response = agentcore_control.create_memory(
+        name=memory_name,
+        description=(
+            'Session-scoped conversational memory for NovaMart customer '
+            'support interactions.'
+        ),
+        eventExpiryDuration=7,
+        memoryStrategies=[{
+            'summaryMemoryStrategy': {
+                'name': 'SessionSummary',
+                'namespaces': ['/summaries/{actorId}/{sessionId}'],
+            },
+        }],
+        clientToken=str(uuid.uuid4()),
+    )
 
     if response is None:
         raise NotImplementedError("configure_memory: create_memory() not implemented")
@@ -1255,7 +1385,32 @@ def configure_observability(runtime_arn: str) -> None:
     # and the X-Ray sampling rate; on exception print
     #   "[Note] Observability configuration failed: <e>"
 
-    pass
+    logging_configuration = {
+        'cloudWatchConfig': {
+            'logGroupName': config.AGENT_LOG_GROUP,
+            'logLevel': 'INFO',
+            'enabled': True,
+        },
+        'xRayConfig': {
+            'enabled': True,
+            'samplingRate': 1.0,
+        },
+    }
+    try:
+        summary = apply_observability_config(
+            runtime_arn,
+            logging_configuration,
+        )
+        print(
+            "  CloudWatch log group configured: "
+            f"{logging_configuration['cloudWatchConfig']['logGroupName']}"
+        )
+        print(
+            "  X-Ray sampling rate configured: "
+            f"{logging_configuration['xRayConfig']['samplingRate']}"
+        )
+    except Exception as e:
+        print(f"[Note] Observability configuration failed: {e}")
 
 
 # ═══════════════════════════════════════════════════════

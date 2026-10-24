@@ -442,6 +442,26 @@ agentcore logs          # runtime logs
 
 The `chat` command opens a conversation loop where you type queries and watch the orchestrator route them in real time - colour-coded by agent (Inventory, Policy, Refund, Communication). It uses a pre-written terminal UI (`AgentTrace` / `_TraceWriter`) built into `agent_orchestrator.py`. **This scaffolding is pre-implemented and requires no modification.**
 
+### Validated Integration Fixes (2026-10-24)
+
+These validations used the local orchestrator with real AWS services; they do not constitute validation of the deployed AgentCore Runtime. The existing [Task 2 screenshot](evidence/Task_2_Validation.png) and [Tasks 2-6 validation log](evidence/validation-tasks-2-to-6.txt) record the 40/40 structural result. The [X-Ray service-map screenshot](evidence/X-ray_Service_Map.png) records the observed agent topology, but is not a per-trace export.
+
+#### Orchestrator initialization ordering
+
+- **Observed:** `initialize_session` and the first routing tool were executed concurrently. The initial route failed before WorkflowState initialization completed, after which the model retried successfully. Original trace `1-6adcb313-75df540a7cd92cf9aa8cc083` contained 7 spans, 2 faults, 0 errors, and 0 throttles.
+- **Assessment:** Static inspection confirmed that Strands used its concurrent tool executor by default, so initialization and routing emitted in one tool batch could overlap. The timing and successful retry were consistent with this race, although the original fault span did not expose an exception message.
+- **Correction:** `OrchestratorAgent` now uses `SequentialToolExecutor`; PolicyAgent's intentional three-way Knowledge Base retrieval remains parallel.
+- **Validation:** A local emitted-order check passed, the official Task 2 suite remained 40/40, and an integrated workflow completed with initialization preceding routing. Corrected trace `1-6adcbe83-6dcd96e07384c1cbf76b81cd` contained 5 spans, 0 faults, 0 errors, and 0 throttles.
+- **Limitation:** Sequential execution preserves emitted tool order; it does not independently guarantee that the model will emit initialization first.
+
+#### RefundAgent temporal context
+
+- **Observed:** On 2026-10-24, RefundAgent received order `ORD-27176` for Premium customer `CUST-001`, with DynamoDB order date `2026-10-11` and a 60-day window. It invented December 20, 2024 as the current date, reinterpreted the order year as 2024, and incorrectly classified the return as ineligible.
+- **Assessment:** RefundAgent had not received an authoritative current date, no matching stale date existed in repository code or fixtures, and eligibility arithmetic was model-generated. The exact origin of the invented date remains unconfirmed.
+- **Correction:** The RefundAgent invocation now supplies the application's current UTC date and instructs the agent to preserve DynamoDB dates exactly and report missing, malformed, or future dates rather than silently replacing them.
+- **Validation:** Python compilation, `git diff --check`, and the official Task 2 suite passed. In an integrated retest, RefundAgent used `2026-10-24` and `2026-10-11`, calculated 13 elapsed days, and classified the Premium return as eligible. Retest trace: `1-6adcc34a-fb20605f288bcd1c3a4b34e4`.
+- **Limitations:** Date arithmetic and eligibility remain model-generated. Project examples use order date while policy wording refers to delivery date, and UTC is used because no business timezone is specified. The corrected decision was observed directly, but this retest did not route `CUST-001` through CommunicationAgent. No refund mutation was performed or verified.
+
 ---
 
 ## Infrastructure
