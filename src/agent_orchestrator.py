@@ -395,15 +395,20 @@ not initiated and identify what is missing.
     @tool
     def initiate_refund(customer_id: str, order_id: str, reason: str) -> dict:
         """
-        Initiate a return by updating the order record in DynamoDB.
+        Provide self-service return instructions without changing the order.
+
+        This tool does not initiate a return, process a refund, generate a
+        reference number, or write to DynamoDB.
 
         Args:
             customer_id: The customer's unique identifier
-            order_id: The order to return
+            order_id: The order the customer wants to return
             reason: Customer-provided reason for the return
 
         Returns:
-            Confirmation dict with return_reference number and instructions
+            A dict with initiated=False, the supplied customer, order, and
+            reason values, and instructions for starting a return through
+            Order History.
         """
         return {
             'initiated': False,
