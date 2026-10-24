@@ -455,7 +455,7 @@ def build_policy_agent() -> Agent:
         name='ReturnsPolicyRetrieverAgent',
         model=BedrockModel(
             model_id=config.WORKER_MODEL_ID,
-            temperature=0.1,
+            temperature=0.0,
         ),
         system_prompt=(
             'You retrieve evidence from the NovaMart Returns Policy. Always '
@@ -478,7 +478,7 @@ def build_policy_agent() -> Agent:
         name='ShippingPolicyRetrieverAgent',
         model=BedrockModel(
             model_id=config.WORKER_MODEL_ID,
-            temperature=0.1,
+            temperature=0.0,
         ),
         system_prompt=(
             'You retrieve evidence from the NovaMart Shipping Policy. Always '
@@ -501,7 +501,7 @@ def build_policy_agent() -> Agent:
         name='WarrantyPolicyRetrieverAgent',
         model=BedrockModel(
             model_id=config.WORKER_MODEL_ID,
-            temperature=0.1,
+            temperature=0.0,
         ),
         system_prompt=(
             'You retrieve evidence from the NovaMart Warranty Policy. Always '
