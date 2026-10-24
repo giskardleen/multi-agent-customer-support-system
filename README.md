@@ -378,6 +378,18 @@ python src/agent_orchestrator.py test
 # (or X-Ray → Service map). Select "Last 5 minutes"; allow 30-60 s.
 ```
 
+#### CloudWatch observability dashboard
+
+The `NovaMart-AgentCore-Observability` dashboard in `us-east-1` presents three views over the bounded evidence window **2026-10-24 15:55–16:10 UTC**:
+
+- **Worker Routing Invocations** queries `/aws/bedrock/agentcore/udacity-agentcore`, filters to `agentcore-runtime/` log streams, and counts `route_to_*` calls by routing tool. Counts include retries and are not unique customer requests.
+- **Completed Worker Routing Latency** uses the same Runtime-only stream filter and reports completion count, average, p95, and maximum latency by routing tool. Failed attempts without a `tool done` record are excluded.
+- **Guardrail v1 — Aggregate Interventions** uses the AWS-managed `InvocationsIntervened` metric in `AWS/Bedrock/Guardrails`, filtered to the NovaMart Guardrail ARN and published version 1. This is aggregate Guardrail activity and is not exclusively attributable to AgentCore Runtime requests; it does not establish individual policy attribution, blocked-versus-anonymized action, or per-request outcomes.
+
+The first two widgets are deployed-Runtime telemetry because their queries explicitly select `agentcore-runtime/` streams. The Guardrail widget is deliberately labeled as an aggregate managed metric. CloudWatch dashboards may incur a recurring dashboard charge, and the Logs Insights widgets incur query charges based on data scanned whenever they are loaded or refreshed; keep review windows narrow and avoid unnecessary frequent refreshes.
+
+![NovaMart AgentCore CloudWatch observability dashboard](evidence/CloudWatch_Observability_Dashboard.png)
+
 ---
 
 ### Deployment Pipeline
